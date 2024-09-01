@@ -1,0 +1,580 @@
+1
+00:00:00,240 --> 00:00:01,980
+Hello, and welcome to this lesson
+
+2
+00:00:01,980 --> 00:00:06,010
+on Docker swarm security and MTLS.
+
+3
+00:00:06,010 --> 00:00:08,600
+So we're just going to talk about a couple of concepts
+
+4
+00:00:08,600 --> 00:00:12,660
+related to security in the context of Docker swarm,
+
+5
+00:00:12,660 --> 00:00:15,350
+and the first concept I want to talk about,
+
+6
+00:00:15,350 --> 00:00:18,420
+is encrypting overlay networks.
+
+7
+00:00:18,420 --> 00:00:20,650
+So we've already talked about overlay networks,
+
+8
+00:00:20,650 --> 00:00:24,270
+these are those distributed cluster networks
+
+9
+00:00:24,270 --> 00:00:27,650
+that allow your containers and services
+
+10
+00:00:27,650 --> 00:00:31,480
+to communicate transparently across your swarm cluster,
+
+11
+00:00:31,480 --> 00:00:36,240
+regardless of which node in the cluster they may be on.
+
+12
+00:00:36,240 --> 00:00:39,910
+But what if we want to encrypt all communication
+
+13
+00:00:39,910 --> 00:00:42,380
+going across those overlay networks?
+
+14
+00:00:42,380 --> 00:00:44,330
+Well, that's what we're going to talk about.
+
+15
+00:00:44,330 --> 00:00:47,220
+It's actually pretty easy to do.
+
+16
+00:00:47,220 --> 00:00:50,660
+I'm going to create a Docker overlay network
+
+17
+00:00:50,660 --> 00:00:53,830
+just like we have done in the past
+
+18
+00:00:53,830 --> 00:00:57,060
+with the docker network create command,
+
+19
+00:00:57,060 --> 00:00:59,040
+and I can encrypt my network
+
+20
+00:00:59,040 --> 00:01:04,040
+just by passing in this --opt encrypted flag,
+
+21
+00:01:07,080 --> 00:01:11,103
+and I'll specify my --driver to make it an overlay network,
+
+22
+00:01:14,210 --> 00:01:17,660
+and I'll just give it the name, my-encrypted-net,
+
+23
+00:01:17,660 --> 00:01:19,860
+and just like that I've created
+
+24
+00:01:19,860 --> 00:01:21,590
+an encrypted overlay network.
+
+25
+00:01:21,590 --> 00:01:24,210
+Now, it's not much fun just to create the network,
+
+26
+00:01:24,210 --> 00:01:27,310
+so let's go ahead and actually demonstrate
+
+27
+00:01:27,310 --> 00:01:29,730
+using the network just to make sure
+
+28
+00:01:29,730 --> 00:01:31,043
+that it's really working.
+
+29
+00:01:32,280 --> 00:01:34,660
+So I'm just going to create a simple service here
+
+30
+00:01:37,700 --> 00:01:40,510
+and I'll just make a service running nginx,
+
+31
+00:01:40,510 --> 00:01:43,100
+as we have done many times before,
+
+32
+00:01:43,100 --> 00:01:47,640
+and I'll make sure that it's using that network,
+
+33
+00:01:47,640 --> 00:01:50,453
+my-encrypted-net,
+
+34
+00:01:52,130 --> 00:01:54,820
+we'll give it 3 replicas,
+
+35
+00:01:54,820 --> 00:01:57,653
+and just make it a simple nginx service.
+
+36
+00:02:02,470 --> 00:02:05,430
+Now, in order to demonstrate communication
+
+37
+00:02:05,430 --> 00:02:08,060
+across that encrypted network,
+
+38
+00:02:08,060 --> 00:02:11,253
+let's go ahead and create another service.
+
+39
+00:02:18,400 --> 00:02:21,803
+We'll just call this one encrypted-overlay-busybox,
+
+40
+00:02:23,000 --> 00:02:28,000
+and again, we will attach it to my-encrypted-net
+
+41
+00:02:31,200 --> 00:02:35,800
+and we will do the radial/busyboxplus:curl image,
+
+42
+00:02:35,800 --> 00:02:38,973
+just so we can communicate with our nginx service,
+
+43
+00:02:40,250 --> 00:02:43,500
+and I'll just pass in a simple command here,
+
+44
+00:02:43,500 --> 00:02:46,890
+sh -c and then in single quotes,
+
+45
+00:02:46,890 --> 00:02:51,890
+I'll put my command, and just like any other network,
+
+46
+00:02:53,530 --> 00:02:57,720
+we should be able to contact our nginx service
+
+47
+00:02:57,720 --> 00:02:59,803
+simply using the service name here,
+
+48
+00:03:02,640 --> 00:03:04,800
+and I'll just use port 80,
+
+49
+00:03:04,800 --> 00:03:07,840
+and just so that busybox container
+
+50
+00:03:07,840 --> 00:03:11,323
+doesn't shut down immediately, I'll have it sleep.
+
+51
+00:03:14,510 --> 00:03:17,240
+So, now our busybox service is running
+
+52
+00:03:17,240 --> 00:03:21,300
+and we should be able to check the log
+
+53
+00:03:21,300 --> 00:03:23,253
+for our busybox service,
+
+54
+00:03:26,120 --> 00:03:30,890
+and in that log, we should see the nginx welcome page
+
+55
+00:03:30,890 --> 00:03:34,130
+as a response to this curl command here
+
+56
+00:03:34,130 --> 00:03:38,483
+demonstrating communication over our encrypted network.
+
+57
+00:03:40,150 --> 00:03:42,770
+So I'll just do docker service logs
+
+58
+00:03:42,770 --> 00:03:47,100
+on my encrypted-overlay-busybox service there,
+
+59
+00:03:47,100 --> 00:03:48,450
+and sure enough, it's a little bit
+
+60
+00:03:48,450 --> 00:03:50,293
+squashed here on the screen,
+
+61
+00:03:51,810 --> 00:03:55,620
+but we can see the output from our nginx welcome page.
+
+62
+00:03:55,620 --> 00:03:58,450
+So we created an encrypted network
+
+63
+00:03:58,450 --> 00:04:01,290
+and we were able to successfully communicate
+
+64
+00:04:01,290 --> 00:04:02,870
+between 2 different services
+
+65
+00:04:02,870 --> 00:04:06,050
+using that encrypted overlay network.
+
+66
+00:04:06,050 --> 00:04:07,910
+The other thing I want to talk to you about,
+
+67
+00:04:07,910 --> 00:04:12,910
+is MTLS, or mutual TLS, in Docker swarm.
+
+68
+00:04:13,640 --> 00:04:16,900
+MTLS refers to mutually authenticated
+
+69
+00:04:16,900 --> 00:04:18,980
+transport layer security.
+
+70
+00:04:18,980 --> 00:04:21,830
+So this is basically normal TLS,
+
+71
+00:04:21,830 --> 00:04:23,960
+but it means that both the client
+
+72
+00:04:23,960 --> 00:04:26,470
+and the server have a certificate.
+
+73
+00:04:26,470 --> 00:04:27,730
+That's what we're talking about
+
+74
+00:04:27,730 --> 00:04:31,300
+when we talk about mutually authenticated TLS.
+
+75
+00:04:31,300 --> 00:04:35,500
+The client knows that the server really is the server
+
+76
+00:04:35,500 --> 00:04:38,540
+and the server knows that the client really is the client.
+
+77
+00:04:38,540 --> 00:04:41,210
+They have both authenticated with each other
+
+78
+00:04:41,210 --> 00:04:45,500
+and all communication between the 2 is encrypted.
+
+79
+00:04:45,500 --> 00:04:49,720
+So when we talk about MTLS in the context of Docker swarm,
+
+80
+00:04:49,720 --> 00:04:52,590
+what we're talking about is the communication
+
+81
+00:04:52,590 --> 00:04:57,010
+between the different nodes and components in the cluster.
+
+82
+00:04:57,010 --> 00:05:00,630
+So when our worker nodes are talking to our manager nodes,
+
+83
+00:05:00,630 --> 00:05:03,090
+or the manager nodes are talking to the worker nodes,
+
+84
+00:05:03,090 --> 00:05:06,660
+or when the manager nodes are talking to each other,
+
+85
+00:05:06,660 --> 00:05:09,760
+all of that swarm level communication
+
+86
+00:05:09,760 --> 00:05:13,760
+is encrypted and mutually authenticated.
+
+87
+00:05:13,760 --> 00:05:16,420
+So for the purposes of the Docker Certified Associate,
+
+88
+00:05:16,420 --> 00:05:20,180
+you need to just have a general awareness of the concept
+
+89
+00:05:20,180 --> 00:05:24,300
+behind this mutually authenticated transport layer security
+
+90
+00:05:24,300 --> 00:05:27,640
+for those swarm level communications.
+
+91
+00:05:27,640 --> 00:05:29,950
+You don't need to memorize every single detail
+
+92
+00:05:29,950 --> 00:05:31,090
+about how this works,
+
+93
+00:05:31,090 --> 00:05:35,320
+but I'll just give you a general idea of what it looks like.
+
+94
+00:05:35,320 --> 00:05:37,720
+So when we're talking about MTLS,
+
+95
+00:05:37,720 --> 00:05:40,790
+both of the participants in the communication.
+
+96
+00:05:40,790 --> 00:05:42,920
+So let's say our swarm manager
+
+97
+00:05:42,920 --> 00:05:45,880
+is talking to one of our worker nodes,
+
+98
+00:05:45,880 --> 00:05:49,490
+both of those participants would exchange certificates
+
+99
+00:05:49,490 --> 00:05:51,330
+and all their communication
+
+100
+00:05:51,330 --> 00:05:53,960
+would be authenticated and encrypted.
+
+101
+00:05:53,960 --> 00:05:57,430
+So the way this works is when we initialize a new swarm,
+
+102
+00:05:57,430 --> 00:06:00,050
+so when we do that docker swarm init command
+
+103
+00:06:00,050 --> 00:06:03,240
+and create our first manager node,
+
+104
+00:06:03,240 --> 00:06:07,730
+a root certificate or certificate authority is generated,
+
+105
+00:06:07,730 --> 00:06:10,020
+and this certificate authority
+
+106
+00:06:10,020 --> 00:06:12,300
+is then used to generate and sign
+
+107
+00:06:12,300 --> 00:06:14,700
+all of the future certificates
+
+108
+00:06:14,700 --> 00:06:17,640
+for all the new nodes as they joined the cluster.
+
+109
+00:06:17,640 --> 00:06:19,560
+Now worker and manager tokens
+
+110
+00:06:19,560 --> 00:06:22,220
+are also generated using the CA,
+
+111
+00:06:22,220 --> 00:06:25,560
+so you may remember when we joined our node,
+
+112
+00:06:25,560 --> 00:06:28,170
+we used a command that came from the manager
+
+113
+00:06:28,170 --> 00:06:29,890
+and contained a special token.
+
+114
+00:06:29,890 --> 00:06:33,050
+Well, that token was generated using the CA.
+
+115
+00:06:33,050 --> 00:06:35,240
+So when we add the worker node,
+
+116
+00:06:35,240 --> 00:06:37,130
+it has that validated token
+
+117
+00:06:37,130 --> 00:06:39,580
+that came from the certificate authority,
+
+118
+00:06:39,580 --> 00:06:41,470
+and when the node joins the cluster
+
+119
+00:06:41,470 --> 00:06:43,360
+it gets its own certificate,
+
+120
+00:06:43,360 --> 00:06:45,460
+which is used to authenticate
+
+121
+00:06:45,460 --> 00:06:47,210
+and encrypt those communications
+
+122
+00:06:47,210 --> 00:06:49,660
+between the manager and the worker.
+
+123
+00:06:49,660 --> 00:06:53,500
+So our MTLS is used for all cluster level communication
+
+124
+00:06:53,500 --> 00:06:54,750
+between the swarm nodes.
+
+125
+00:06:54,750 --> 00:06:57,750
+So, if we are spinning up new services
+
+126
+00:06:57,750 --> 00:07:01,280
+and the manager needs to assign a new task to a worker,
+
+127
+00:07:01,280 --> 00:07:03,430
+it's going to communicate with the worker node
+
+128
+00:07:03,430 --> 00:07:06,440
+to tell the worker node to spin up a new container,
+
+129
+00:07:06,440 --> 00:07:08,590
+and that communication is going to occur
+
+130
+00:07:08,590 --> 00:07:12,693
+in that mutually authenticated encrypted and secure fashion.
+
+131
+00:07:13,670 --> 00:07:16,030
+MTLS is enabled by default,
+
+132
+00:07:16,030 --> 00:07:20,320
+you don't need to do anything to enable it or configure it.
+
+133
+00:07:20,320 --> 00:07:22,690
+It's already turned on and we've been using it
+
+134
+00:07:22,690 --> 00:07:24,250
+all along through this course
+
+135
+00:07:24,250 --> 00:07:26,800
+while we've been using Docker swarm.
+
+136
+00:07:26,800 --> 00:07:29,870
+But you do need to just be generally aware
+
+137
+00:07:29,870 --> 00:07:33,050
+of the fact that all of these cluster level communications
+
+138
+00:07:33,050 --> 00:07:37,490
+are encrypted with mutually authenticated encryption.
+
+139
+00:07:37,490 --> 00:07:39,920
+So we've talked about 2 basic concepts
+
+140
+00:07:39,920 --> 00:07:42,360
+related to security in Docker swarm.
+
+141
+00:07:42,360 --> 00:07:45,140
+We talked about encrypting overlay networks,
+
+142
+00:07:45,140 --> 00:07:49,000
+and we talked about the mutually authenticated encryption
+
+143
+00:07:49,000 --> 00:07:52,870
+that is used to handle all cluster level communication
+
+144
+00:07:52,870 --> 00:07:54,310
+in Docker swarm.
+
+145
+00:07:54,310 --> 00:07:56,910
+That's all for this lesson. See you in the next one.
+

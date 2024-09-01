@@ -1,0 +1,856 @@
+1
+00:00:00,130 --> 00:00:01,850
+Hello, and welcome to this lesson
+
+2
+00:00:01,850 --> 00:00:06,030
+on securing the Docker daemon HTTP socket.
+
+3
+00:00:06,030 --> 00:00:09,980
+So Docker by default listens on a socket
+
+4
+00:00:09,980 --> 00:00:12,490
+that is not exposed to the network.
+
+5
+00:00:12,490 --> 00:00:13,790
+and that means there's no way
+
+6
+00:00:13,790 --> 00:00:16,640
+for anyone to interact with your Docker daemon
+
+7
+00:00:16,640 --> 00:00:19,110
+from outside your server, via the network,
+
+8
+00:00:19,110 --> 00:00:22,650
+and as you can imagine, that's pretty good for security.
+
+9
+00:00:22,650 --> 00:00:25,190
+However, you do have the ability
+
+10
+00:00:25,190 --> 00:00:28,170
+to expose that Docker socket externally
+
+11
+00:00:28,170 --> 00:00:30,700
+so that you can interact with your Docker daemon
+
+12
+00:00:30,700 --> 00:00:33,940
+from outside the server and manage it remotely.
+
+13
+00:00:33,940 --> 00:00:36,030
+There is a way to do this securely
+
+14
+00:00:36,030 --> 00:00:38,820
+but it does require some additional configuration.
+
+15
+00:00:38,820 --> 00:00:42,070
+Specifically, we will need to create a certificate authority
+
+16
+00:00:42,070 --> 00:00:45,500
+and set up client and server certificates that we can use
+
+17
+00:00:45,500 --> 00:00:49,650
+in order to securely connect to the Docker socket.
+
+18
+00:00:49,650 --> 00:00:52,660
+So I went ahead and created 2 playground servers
+
+19
+00:00:52,660 --> 00:00:55,020
+specifically for this lesson.
+
+20
+00:00:55,020 --> 00:00:56,710
+You can just use 2 servers
+
+21
+00:00:56,710 --> 00:01:01,710
+with Ubuntu 18.04 Bionic Beaver LTS, and a size of micro.
+
+22
+00:01:02,430 --> 00:01:04,970
+We really don't need to do a whole lot on these servers
+
+23
+00:01:04,970 --> 00:01:06,680
+so we can keep them pretty small,
+
+24
+00:01:06,680 --> 00:01:09,210
+and that way, you have enough units left over
+
+25
+00:01:09,210 --> 00:01:11,280
+that if you have a Docker swarm
+
+26
+00:01:11,280 --> 00:01:13,210
+and you want to hang onto your Docker swarm
+
+27
+00:01:13,210 --> 00:01:15,670
+and not interfere with it, you can just keep that around
+
+28
+00:01:15,670 --> 00:01:18,370
+and just use those 2 remaining units
+
+29
+00:01:18,370 --> 00:01:20,630
+for these 2 microservers.
+
+30
+00:01:20,630 --> 00:01:23,910
+I went ahead and installed Docker Community Edition
+
+31
+00:01:23,910 --> 00:01:26,370
+on both of my servers as well,
+
+32
+00:01:26,370 --> 00:01:31,370
+however, I did not add a cloud_user to the Docker group.
+
+33
+00:01:31,440 --> 00:01:34,340
+So if I just do a docker version here,
+
+34
+00:01:34,340 --> 00:01:36,470
+you'll notice I got permission denied,
+
+35
+00:01:36,470 --> 00:01:38,960
+indicating that I cannot actually connect
+
+36
+00:01:38,960 --> 00:01:40,810
+to the Docker daemon,
+
+37
+00:01:40,810 --> 00:01:43,840
+and I just wanted to do that just so it will be clear
+
+38
+00:01:43,840 --> 00:01:46,600
+once we've gotten everything up and running and working,
+
+39
+00:01:46,600 --> 00:01:48,270
+we'll know that we're actually connecting
+
+40
+00:01:48,270 --> 00:01:49,760
+to that remote daemon
+
+41
+00:01:49,760 --> 00:01:51,830
+and not just connecting to the local one.
+
+42
+00:01:51,830 --> 00:01:53,550
+We can easily test it
+
+43
+00:01:53,550 --> 00:01:56,010
+just by running that docker version command.
+
+44
+00:01:56,010 --> 00:01:58,280
+Now this server that I'm looking at right now,
+
+45
+00:01:58,280 --> 00:02:01,000
+I'm going to use as my server side.
+
+46
+00:02:01,000 --> 00:02:02,830
+So here's where I'm going to go ahead
+
+47
+00:02:02,830 --> 00:02:05,480
+and generate all of my certificates.
+
+48
+00:02:05,480 --> 00:02:06,860
+Now, if you want to follow along,
+
+49
+00:02:06,860 --> 00:02:09,490
+you can find these commands that I'm going to use
+
+50
+00:02:09,490 --> 00:02:11,420
+in the description below the video.
+
+51
+00:02:11,420 --> 00:02:13,550
+Just make sure that if you're copying and pasting,
+
+52
+00:02:13,550 --> 00:02:16,400
+you replace any placeholders in those commands
+
+53
+00:02:16,400 --> 00:02:19,570
+with the actual values that need to be there.
+
+54
+00:02:19,570 --> 00:02:21,650
+So first I'm going to run this command
+
+55
+00:02:21,650 --> 00:02:24,290
+and this is going to generate a key
+
+56
+00:02:24,290 --> 00:02:26,490
+for my certificate authority,
+
+57
+00:02:26,490 --> 00:02:28,880
+and I do need to enter a passphrase
+
+58
+00:02:28,880 --> 00:02:31,060
+and then I'll reenter that passphrase.
+
+59
+00:02:31,060 --> 00:02:34,030
+Now make sure you remember the passphrase that you use
+
+60
+00:02:34,030 --> 00:02:37,630
+because you will need it just a little later.
+
+61
+00:02:37,630 --> 00:02:40,390
+Now that I have my ca-key file,
+
+62
+00:02:40,390 --> 00:02:44,300
+I'm going to go ahead and generate the CA certificate
+
+63
+00:02:44,300 --> 00:02:47,740
+and of course right there, I need that passphrase again.
+
+64
+00:02:47,740 --> 00:02:52,260
+Next I'm going to generate a key file for my server key.
+
+65
+00:02:52,260 --> 00:02:55,230
+Now, in order to generate the actual server certificate,
+
+66
+00:02:55,230 --> 00:02:58,850
+I do need to provide some additional information
+
+67
+00:02:58,850 --> 00:03:01,870
+in form of a certificate signing request.
+
+68
+00:03:01,870 --> 00:03:05,640
+So I'm going to go ahead and run this command
+
+69
+00:03:05,640 --> 00:03:07,837
+which is just going to create that server.csr.
+
+70
+00:03:07,837 --> 00:03:10,430
+That's just a temporary file that we need
+
+71
+00:03:10,430 --> 00:03:13,070
+in order to generate our certificate.
+
+72
+00:03:13,070 --> 00:03:17,190
+Next, I'm going to create this extfile.cnf,
+
+73
+00:03:17,190 --> 00:03:19,260
+it's just a configuration file
+
+74
+00:03:19,260 --> 00:03:21,240
+for the certificate that I'm going to generate
+
+75
+00:03:21,240 --> 00:03:24,730
+and there is a placeholder here that I need to remove.
+
+76
+00:03:24,730 --> 00:03:27,310
+It says server private IP.
+
+77
+00:03:27,310 --> 00:03:30,190
+So I'm going to remove that placeholder
+
+78
+00:03:30,190 --> 00:03:33,300
+and I will paste in the private IP address
+
+79
+00:03:33,300 --> 00:03:35,490
+of my cloud server here
+
+80
+00:03:35,490 --> 00:03:39,410
+that I'm going to be using as my Docker daemon servers.
+
+81
+00:03:39,410 --> 00:03:41,350
+So I'm just going to run that
+
+82
+00:03:41,350 --> 00:03:44,570
+and then I do need to add 1 more line
+
+83
+00:03:44,570 --> 00:03:47,520
+to that extfile.cnf file,
+
+84
+00:03:47,520 --> 00:03:51,310
+setting extendedKeyUsage to serverAuth.
+
+85
+00:03:51,310 --> 00:03:53,010
+Now that I've created all those files,
+
+86
+00:03:53,010 --> 00:03:57,240
+I'm ready to go ahead and generate my server certificate
+
+87
+00:03:57,240 --> 00:03:59,850
+and I need to enter that passphrase.
+
+88
+00:03:59,850 --> 00:04:01,550
+If I do an ls at this point,
+
+89
+00:04:01,550 --> 00:04:04,100
+you can see that I have several files.
+
+90
+00:04:04,100 --> 00:04:07,390
+I have my ca.pem and my ca-key,
+
+91
+00:04:07,390 --> 00:04:09,920
+those are the 2 files for my certificate authority
+
+92
+00:04:09,920 --> 00:04:14,170
+and of course, server-cert.pem and server-key,
+
+93
+00:04:14,170 --> 00:04:17,170
+the 2 files for my server certificate.
+
+94
+00:04:17,170 --> 00:04:20,090
+Now we also need to generate a client certificate
+
+95
+00:04:20,090 --> 00:04:22,720
+that our Docker client is going to use
+
+96
+00:04:22,720 --> 00:04:25,780
+in order to authenticate with the Docker daemon.
+
+97
+00:04:25,780 --> 00:04:27,870
+So I'm just going to create another key.
+
+98
+00:04:27,870 --> 00:04:30,210
+This one is going to be for the client
+
+99
+00:04:31,320 --> 00:04:32,510
+and I need to create
+
+100
+00:04:32,510 --> 00:04:36,130
+another certificate signing request file.
+
+101
+00:04:36,130 --> 00:04:38,840
+This one will just be called client.csr
+
+102
+00:04:40,130 --> 00:04:42,553
+and another config file.
+
+103
+00:04:43,670 --> 00:04:45,920
+and this time we're just outputting this one line
+
+104
+00:04:45,920 --> 00:04:50,530
+to extfile-client.cnf and last but not least,
+
+105
+00:04:50,530 --> 00:04:54,230
+I can go ahead and generate the client certificate itself
+
+106
+00:04:54,230 --> 00:04:57,290
+and I do need to enter my passphrase.
+
+107
+00:04:57,290 --> 00:04:58,310
+Now that I've done that,
+
+108
+00:04:58,310 --> 00:05:02,280
+you can see that I have my cert.pem and my key.pem.
+
+109
+00:05:02,280 --> 00:05:05,393
+Those are the 2 files for my client certificate.
+
+110
+00:05:06,950 --> 00:05:07,920
+The next thing I'm going to do,
+
+111
+00:05:07,920 --> 00:05:11,230
+is I'm going to go ahead and set some appropriate
+
+112
+00:05:11,230 --> 00:05:13,840
+permissions for these files because some of them are
+
+113
+00:05:13,840 --> 00:05:16,160
+sensitive, particularly those key files.
+
+114
+00:05:16,160 --> 00:05:19,950
+So I'm just going to do a couple of chmod commands
+
+115
+00:05:19,950 --> 00:05:22,893
+to change the permissions of those files appropriately,
+
+116
+00:05:23,920 --> 00:05:25,700
+and now I'm ready to go ahead
+
+117
+00:05:25,700 --> 00:05:30,700
+and configure my Docker host to utilize these client files
+
+118
+00:05:31,480 --> 00:05:34,240
+and to expose that socket externally
+
+119
+00:05:34,240 --> 00:05:35,930
+so that I can access it remotely.
+
+120
+00:05:35,930 --> 00:05:38,220
+So I'm just going to clear the screen
+
+121
+00:05:38,220 --> 00:05:41,990
+and do a sudo vi on etc/docker/daemon.json.
+
+122
+00:05:41,990 --> 00:05:45,310
+So we're just going to change that Docker daemon file
+
+123
+00:05:45,310 --> 00:05:49,600
+and because this is a fresh server with a Docker
+
+124
+00:05:49,600 --> 00:05:52,860
+installation, I don't have anything in my daemon.json at the
+
+125
+00:05:52,860 --> 00:05:55,600
+moment, so I'm just going to paste in this content here.
+
+126
+00:05:55,600 --> 00:05:57,700
+We're setting tlsverify to true
+
+127
+00:05:57,700 --> 00:06:00,070
+and then we're passing in 3 of those files
+
+128
+00:06:00,070 --> 00:06:02,020
+that we just created:
+
+129
+00:06:02,020 --> 00:06:05,220
+our certificate authority, as well as the server
+
+130
+00:06:05,220 --> 00:06:07,850
+certificate, and the server certificate key.
+
+131
+00:06:07,850 --> 00:06:10,890
+So I'm going to go ahead and save that file.
+
+132
+00:06:10,890 --> 00:06:13,960
+Now I'm not quite finished configuring the Docker daemon,
+
+133
+00:06:13,960 --> 00:06:18,960
+I also need to edit my Docker daemon unit file
+
+134
+00:06:19,110 --> 00:06:24,110
+which is in /lib/systemd/system/docker.service.
+
+135
+00:06:24,620 --> 00:06:27,130
+So I'm going to make a change to that file,
+
+136
+00:06:27,130 --> 00:06:30,600
+and I'm looking for the line that begins with ExecStart,
+
+137
+00:06:30,600 --> 00:06:33,830
+it's right here under the service block.
+
+138
+00:06:33,830 --> 00:06:35,840
+and here's the line that says ExecStart
+
+139
+00:06:35,840 --> 00:06:39,190
+and there's this flag here, -H.
+
+140
+00:06:39,190 --> 00:06:42,180
+I need to change the value of that flag.
+
+141
+00:06:42,180 --> 00:06:45,980
+Right now it's fd://, I'm just going to remove that
+
+142
+00:06:46,960 --> 00:06:51,127
+and I'm going to change it to 0.0.0.0:2376
+
+143
+00:06:54,820 --> 00:06:58,120
+and I'll go ahead and save that file.
+
+144
+00:06:58,120 --> 00:07:00,540
+Now because we made a change to the unit file,
+
+145
+00:07:00,540 --> 00:07:04,430
+we do need to do a systemctl daemon-reload
+
+146
+00:07:06,680 --> 00:07:10,450
+and now we're ready to go ahead and restart Docker.
+
+147
+00:07:10,450 --> 00:07:11,790
+Now that I've done that,
+
+148
+00:07:11,790 --> 00:07:14,660
+I need to go ahead and copy some of these files
+
+149
+00:07:14,660 --> 00:07:16,490
+that I generated to my client.
+
+150
+00:07:16,490 --> 00:07:18,870
+I'm going to need that client certificate
+
+151
+00:07:18,870 --> 00:07:21,470
+as well as my certificate authority.
+
+152
+00:07:21,470 --> 00:07:26,470
+So I'm going to scp ca.pem and cert.pem
+
+153
+00:07:26,900 --> 00:07:30,043
+as well as key.pem, my client key,
+
+154
+00:07:31,170 --> 00:07:34,940
+and I will just copy those to cloud_user@
+
+155
+00:07:34,940 --> 00:07:37,720
+and then I'm going to paste in
+
+156
+00:07:37,720 --> 00:07:41,010
+the private IP of my playground server
+
+157
+00:07:41,010 --> 00:07:44,230
+that I'm going to be using as the client here
+
+158
+00:07:44,230 --> 00:07:45,390
+and then I'll put a colon
+
+159
+00:07:45,390 --> 00:07:50,390
+and specify a destination directory of /home/cloud_user,
+
+160
+00:07:50,600 --> 00:07:52,930
+and I'll accept that key
+
+161
+00:07:52,930 --> 00:07:56,520
+and of course I need to enter my normal cloud_user password.
+
+162
+00:07:56,520 --> 00:08:00,496
+So now I have copied those 3 files to the client server.
+
+163
+00:08:00,496 --> 00:08:03,050
+So I'm going to move over here to the client
+
+164
+00:08:03,050 --> 00:08:06,610
+and if I do an ls, I should see those 3 files
+
+165
+00:08:06,610 --> 00:08:09,950
+that I just copied over from the server.
+
+166
+00:08:09,950 --> 00:08:13,740
+So now I need to move those files into a specific location
+
+167
+00:08:14,770 --> 00:08:19,540
+and it's just going to be in my home directory /.docker.
+
+168
+00:08:19,540 --> 00:08:21,510
+So I need to go ahead and create that directory
+
+169
+00:08:21,510 --> 00:08:23,981
+because it doesn't exist right now.
+
+170
+00:08:23,981 --> 00:08:26,030
+So I went ahead and created that directory
+
+171
+00:08:26,030 --> 00:08:29,720
+and then I will copy those files
+
+172
+00:08:29,720 --> 00:08:33,680
+and I can do that all with 1 command, just like this,
+
+173
+00:08:36,120 --> 00:08:40,260
+in curly braces, I'll just put {ca,cert,key}
+
+174
+00:08:40,260 --> 00:08:42,453
+and all 3 files end in .pem,
+
+175
+00:08:43,900 --> 00:08:47,453
+and I'll just copy those 3 into that Docker directory,
+
+176
+00:08:48,890 --> 00:08:51,000
+and if I list the contents of that directory,
+
+177
+00:08:51,000 --> 00:08:53,520
+I can see my 3 files there,
+
+178
+00:08:53,520 --> 00:08:56,850
+and now I just need to configure my local Docker client
+
+179
+00:08:56,850 --> 00:09:01,440
+to connect to the daemon on my Docker server.
+
+180
+00:09:01,440 --> 00:09:05,630
+So to do that, I can just set some environment variables,
+
+181
+00:09:05,630 --> 00:09:08,720
+and the first one I need to set is DOCKER_HOST
+
+182
+00:09:10,170 --> 00:09:13,970
+and I need to set that to tcp://
+
+183
+00:09:13,970 --> 00:09:18,590
+and then, I need to enter the private IP address
+
+184
+00:09:18,590 --> 00:09:19,830
+of my Docker server.
+
+185
+00:09:19,830 --> 00:09:22,490
+That's the first server that we were working on earlier.
+
+186
+00:09:22,490 --> 00:09:25,113
+So I'm just going to go ahead and paste that in
+
+187
+00:09:25,113 --> 00:09:30,010
+and then I need to set the port, so :2376
+
+188
+00:09:31,520 --> 00:09:35,370
+and I'm also going to set a second environment variable
+
+189
+00:09:36,700 --> 00:09:41,700
+called DOCKER_TLS_VERIFY and I'll just set that to 1
+
+190
+00:09:42,350 --> 00:09:45,370
+to put that in TLS verify mode,
+
+191
+00:09:45,370 --> 00:09:49,720
+and let's go ahead and just run this docker version command
+
+192
+00:09:49,720 --> 00:09:52,780
+and sure enough, we got a response from the server.
+
+193
+00:09:52,780 --> 00:09:57,360
+Again, I did not add my cloud_user to the docker group,
+
+194
+00:09:57,360 --> 00:10:00,910
+so that response is not coming from the local Docker daemon,
+
+195
+00:10:00,910 --> 00:10:03,010
+it is coming from the remote Docker daemon.
+
+196
+00:10:03,010 --> 00:10:07,030
+We are connecting to the daemon on the other server
+
+197
+00:10:07,030 --> 00:10:08,940
+and we can interact with Docker
+
+198
+00:10:08,940 --> 00:10:11,270
+just using any of our normal Docker commands.
+
+199
+00:10:11,270 --> 00:10:13,560
+If I do docker ps,
+
+200
+00:10:13,560 --> 00:10:16,210
+this response is coming from that other server.
+
+201
+00:10:16,210 --> 00:10:17,700
+If I run a container,
+
+202
+00:10:17,700 --> 00:10:20,400
+that container is going to run on that other server,
+
+203
+00:10:20,400 --> 00:10:24,410
+and all of that communication is encrypted and secured
+
+204
+00:10:24,410 --> 00:10:27,670
+using client and server certificates.
+
+205
+00:10:27,670 --> 00:10:30,210
+So in this lesson, we talked about
+
+206
+00:10:30,210 --> 00:10:34,190
+how to securely authenticate against a remote Docker daemon
+
+207
+00:10:34,190 --> 00:10:36,860
+using the HTTP socket.
+
+208
+00:10:36,860 --> 00:10:38,110
+I showed you how to generate
+
+209
+00:10:38,110 --> 00:10:39,950
+the client and server certificates
+
+210
+00:10:39,950 --> 00:10:42,420
+and configure the server to use them.
+
+211
+00:10:42,420 --> 00:10:45,640
+and I also showed you how to configure the Docker client
+
+212
+00:10:45,640 --> 00:10:49,420
+to connect to that remote socket on another server.
+
+213
+00:10:49,420 --> 00:10:50,630
+That's all for this lesson.
+
+214
+00:10:50,630 --> 00:10:51,830
+See you in the next one.
+

@@ -1,1 +1,0 @@
-https://docs.docker.com/v17.09/engine/userguide/networking/overlay-security-model/
